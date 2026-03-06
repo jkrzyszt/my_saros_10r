@@ -1,0 +1,187 @@
+sequence:
+  - variables:
+      starting: "{{ starting | default(true) }}"
+      recovering: "{{ recovering | default(false) }}"
+  - repeat:
+      while:
+        - alias: either the vacuum is moving or we need to recover
+          condition: or
+          conditions:
+            - condition: state
+              entity_id: vacuum.matter_saros_10r
+              state:
+                - cleaning
+                - returning
+            - condition: template
+              value_template: "{{ recovering }}"
+              alias: recover requested
+        - condition: not
+          conditions:
+            - condition: and
+              conditions:
+                - condition: state
+                  entity_id: sensor.roborock_saros_10r_status
+                  state:
+                    - charger_disconnected
+            - condition: and
+              conditions:
+                - condition: state
+                  entity_id: select.roborock_saros_10r_selected_map
+                  state:
+                    - unknown
+                - condition: state
+                  entity_id: sensor.roborock_saros_10r_current_room
+                  state:
+                    - unknown
+          alias: >-
+            the vacuum hasn't been just woken from deep sleep and is aware of
+            its location
+      sequence:
+        - alias: delay
+          choose:
+            - conditions:
+                - alias: recovering
+                  condition: template
+                  value_template: "{{ recovering }}"
+              sequence:
+                - delay:
+                    hours: 0
+                    minutes: 0
+                    seconds: 12
+                    milliseconds: 0
+            - conditions:
+                - alias: starting
+                  condition: template
+                  value_template: "{{ starting }}"
+              sequence: []
+          default:
+            - delay:
+                hours: 0
+                minutes: 0
+                seconds: 3
+                milliseconds: 0
+        - action: roborock.get_vacuum_current_position
+          metadata: {}
+          target:
+            entity_id: vacuum.roborock_saros_10r
+          data: {}
+          response_variable: position
+          continue_on_error: true
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: >-
+                    {{position is defined and 'vacuum.roborock_saros_10r' in
+                    position}}
+                  alias: vacuum current position acquired
+              sequence:
+                - action: input_number.set_value
+                  metadata: {}
+                  target:
+                    entity_id: input_number.saros_10r_current_position_x
+                  data:
+                    value: "{{position['vacuum.roborock_saros_10r'].x}}"
+                - action: input_number.set_value
+                  metadata: {}
+                  target:
+                    entity_id: input_number.saros_10r_current_position_y
+                  data:
+                    value: "{{position['vacuum.roborock_saros_10r'].y}}"
+                - alias: >-
+                    if we have just recovered and the vacuum is paused then
+                    resume it
+                  choose:
+                    - conditions:
+                        - alias: we have recovered
+                          condition: template
+                          value_template: "{{ recovering }}"
+                      sequence:
+                        - choose:
+                            - conditions:
+                                - condition: state
+                                  entity_id: vacuum.matter_saros_10r
+                                  state:
+                                    - paused
+                              sequence:
+                                - action: vacuum.send_command
+                                  metadata: {}
+                                  target:
+                                    entity_id: vacuum.roborock_saros_10r
+                                  data:
+                                    command: app_resume
+                                - wait_for_trigger:
+                                    - trigger: state
+                                      entity_id:
+                                        - select.roborock_saros_10r_selected_map
+                                    - trigger: state
+                                      entity_id:
+                                        - script.saros_10r_position_tracking
+                                    - trigger: state
+                                      entity_id:
+                                        - sensor.roborock_saros_10r_status
+                                    - trigger: state
+                                      entity_id:
+                                        - sensor.roborock_saros_10r_current_room
+                                    - trigger: state
+                                      entity_id:
+                                        - vacuum.matter_saros_10r
+                                    - trigger: state
+                                      entity_id:
+                                        - >-
+                                          sensor.matter_saros_10r_operational_state
+                                    - trigger: state
+                                      entity_id:
+                                        - vacuum.roborock_saros_10r
+                                    - trigger: state
+                                      entity_id:
+                                        - >-
+                                          binary_sensor.roborock_saros_10r_cleaning
+                                    - trigger: state
+                                      entity_id:
+                                        - sensor.saros_10r_current_position
+                                  timeout:
+                                    hours: 0
+                                    minutes: 0
+                                    seconds: 3
+                                    milliseconds: 0
+                          alias: resume the vacuum if not moving
+                        - action: script.turn_on
+                          metadata: {}
+                          data:
+                            variables:
+                              starting: false
+                              recovering: false
+                          target:
+                            entity_id: script.saros_10r_position_tracking
+          default:
+            - choose:
+                - conditions:
+                    - alias: we need to switch to recovery mode
+                      condition: template
+                      value_template: "{{ recovering }}"
+                  sequence:
+                    - choose:
+                        - conditions:
+                            - condition: state
+                              entity_id: vacuum.matter_saros_10r
+                              state:
+                                - cleaning
+                                - returning
+                          sequence:
+                            - action: vacuum.pause
+                              metadata: {}
+                              target:
+                                entity_id: vacuum.matter_saros_10r
+                              data: {}
+                      alias: pause the vacuum if still moving
+                    - action: script.turn_on
+                      metadata: {}
+                      data:
+                        variables:
+                          starting: false
+                          recovering: true
+                      target:
+                        entity_id: script.saros_10r_position_tracking
+alias: Saros 10R position tracking
+description: ""
+mode: restart
