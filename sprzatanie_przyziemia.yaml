@@ -1,0 +1,78 @@
+alias: Sprzątanie przyziemia
+description: ""
+triggers:
+  - trigger: state
+    entity_id:
+      - vacuum.matter_saros_10r
+    to:
+      - cleaning
+      - returning
+    id: starting
+    enabled: true
+    from:
+      - docked
+      - error
+      - unknown
+      - unavailable
+conditions: []
+actions:
+  - repeat:
+      while:
+        - condition: state
+          entity_id: vacuum.matter_saros_10r
+          state:
+            - cleaning
+            - paused
+            - idle
+            - returning
+        - condition: not
+          conditions:
+            - condition: state
+              entity_id: script.saros_10r_position_tracking
+              state:
+                - "on"
+      sequence:
+        - wait_for_trigger:
+            - trigger: state
+              entity_id:
+                - script.saros_10r_position_tracking
+            - trigger: state
+              entity_id:
+                - sensor.saros_10r_current_position
+            - trigger: state
+              entity_id:
+                - vacuum.matter_saros_10r
+            - trigger: state
+              entity_id:
+                - sensor.matter_saros_10r_operational_state
+            - trigger: state
+              entity_id:
+                - vacuum.roborock_saros_10r
+            - trigger: state
+              entity_id:
+                - sensor.roborock_saros_10r_status
+            - trigger: state
+              entity_id:
+                - binary_sensor.roborock_saros_10r_cleaning
+  - alias: >-
+      if the vacuum is still on the way and its position is tracked then enter
+      pralnia
+    choose:
+      - conditions:
+          - condition: state
+            entity_id: vacuum.matter_saros_10r
+            state:
+              - cleaning
+              - paused
+              - returning
+          - condition: state
+            entity_id: script.saros_10r_position_tracking
+            state:
+              - "on"
+        sequence:
+          - action: script.turn_on
+            metadata: {}
+            target:
+              entity_id: script.saros_10r_pralnia
+            data: {}
+mode: single

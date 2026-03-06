@@ -1,0 +1,76 @@
+alias: Saros 10R track current position
+description: ""
+triggers:
+  - trigger: state
+    entity_id:
+      - vacuum.matter_saros_10r
+    to:
+      - cleaning
+      - returning
+    id: moving
+    from:
+      - docked
+      - paused
+      - idle
+      - error
+      - unknown
+      - unavailable
+  - trigger: state
+    entity_id:
+      - sensor.roborock_saros_10r_status
+    from:
+      - charger_disconnected
+      - unknown
+      - unavailable
+    id: awaken
+  - trigger: state
+    entity_id:
+      - select.roborock_saros_10r_selected_map
+      - sensor.roborock_saros_10r_current_room
+    from:
+      - unknown
+      - unavailable
+    id: localized
+  - trigger: state
+    entity_id:
+      - script.saros_10r_position_tracking
+    from:
+      - unknown
+      - unavailable
+conditions:
+  - condition: state
+    entity_id: script.saros_10r_position_tracking
+    state:
+      - "off"
+  - condition: state
+    entity_id: vacuum.matter_saros_10r
+    state:
+      - cleaning
+      - returning
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: sensor.roborock_saros_10r_status
+        state:
+          - charger_disconnected
+          - unknown
+          - unavailable
+      - condition: and
+        conditions:
+          - condition: state
+            entity_id: select.roborock_saros_10r_selected_map
+            state:
+              - unknown
+              - unavailable
+          - condition: state
+            entity_id: sensor.roborock_saros_10r_current_room
+            state:
+              - unknown
+              - unavailable
+actions:
+  - action: script.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: script.saros_10r_position_tracking
+mode: restart
