@@ -25,6 +25,18 @@ sequence:
         {% endif %}
       x: "{{ states('input_number.saros_10r_current_position_x') | int }}"
       "y": "{{ states('input_number.saros_10r_current_position_y') | int }}"
+      x_left: 28700
+      x_wide_right: 31800
+      x_narrow_right: 30300
+      y_top: 29000
+      y_narrow_bottom: 27500
+      x_kitchen_recess: 29200
+      y_kitchen_recess_bottom: 27500
+      y_kitchen_bottom: 27000
+      x_lock_swing: 31300
+      x_washroom_swing: 29800
+      y_washroom_swing_top: 26500
+      y_washroom_top: 27000
   - choose:
       - conditions:
           - alias: the vacuum is docked or not manageable
@@ -85,14 +97,14 @@ sequence:
           - alias: the vacuum is outside
             condition: template
             value_template: >-
-              {{ x < 28700 or x > 31800 or y > 29000 or (x > 30300 and y <
-              27500) }}
+              {{ x < x_left or x > x_wide_right or y > y_top or (x >
+              x_narrow_right and y < y_narrow_bottom) }}
         sequence:
           - choose:
               - conditions:
                   - alias: the vacuum has eneterd kuchnia
                     condition: template
-                    value_template: "{{ x < 28700 and y > 27000 and y < 29000 }}"
+                    value_template: "{{ x < x_left and y > y_kitchen_bottom and y < y_top }}"
                 sequence:
                   - choose:
                       - conditions:
@@ -113,14 +125,14 @@ sequence:
                         metadata: {}
                         data:
                           variables:
-                            door: ignore
+                            drzwi: ignore
                         target:
                           entity_id:
                             - script.saros_10r_kuchnia_przyziemie
               - conditions:
                   - alias: the vacuum has eneterd śluza
                     condition: template
-                    value_template: "{{ x > 31800 and y > 27500 }}"
+                    value_template: "{{ x > x_wide_right and y > y_narrow_bottom }}"
                 sequence:
                   - choose:
                       - conditions:
@@ -147,7 +159,7 @@ sequence:
               - conditions:
                   - alias: the vacuum has eneterd łazienka
                     condition: template
-                    value_template: "{{ x > 30300 and y < 26500 }}"
+                    value_template: "{{ x > x_narrow_right and y < y_cloakroom_path_top }}"
                 sequence:
                   - choose:
                       - conditions:
@@ -168,7 +180,7 @@ sequence:
                         metadata: {}
                         data:
                           variables:
-                            door: ignore
+                            drzwi: ignore
                         target:
                           entity_id:
                             - script.saros_10r_lazienka_przyziemie
@@ -184,8 +196,9 @@ sequence:
               kuchnia that is not open
             condition: template
             value_template: >-
-              {{ (paused or vacuum == cleaning) and (y > 27500 and x > 28700 and
-              x < 29200 and not kitchen in [ 'on', 'ignore', ]) }}
+              {{ (paused or vacuum == cleaning) and (y > y_kitchen_recess_bottom
+              and x > x_left and x < x_kitchen_recess and not kitchen in [ 'on',
+              'ignore', ]) }}
         sequence:
           - alias: >-
               Unless something changes its state, wait up to 30s before pausing
@@ -208,14 +221,16 @@ sequence:
                         or not is_state('vacuum.matter_saros_10r', vacuum) }}
                     - condition: numeric_state
                       entity_id: input_number.saros_10r_current_position_y
-                      below: 27500
-                    - condition: not
-                      conditions:
-                        - condition: numeric_state
-                          entity_id: input_number.saros_10r_current_position_x
-                          below: 29200
-                          above: 28700
-                      alias: the vacuum has left the door to kuchnia recess area
+                      below: 0
+                      value_template: "{{ this.state - y_kitchen_recess_bottom }}"
+                    - condition: numeric_state
+                      entity_id: input_number.saros_10r_current_position_x
+                      above: 0
+                      value_template: "{{ this.state - x_kitchen_recess }}"
+                    - condition: numeric_state
+                      entity_id: input_number.saros_10r_current_position_x
+                      below: 0
+                      value_template: "{{ this.state - x_left }}"
                     - alias: at least 30s has elapsed
                       condition: template
                       value_template: "{{ 30 + timestamp <= now() | as_timestamp }}"
@@ -242,7 +257,8 @@ sequence:
               - conditions:
                   - condition: numeric_state
                     entity_id: input_number.saros_10r_current_position_x
-                    below: 28700
+                    below: 0
+                    value_template: "{{ this.state - x_left }}"
                 sequence:
                   - action: script.turn_on
                     metadata: {}
@@ -267,10 +283,12 @@ sequence:
                       and is_state('vacuum.matter_saros_10r', vacuum) }}
                   - condition: numeric_state
                     entity_id: input_number.saros_10r_current_position_y
-                    above: 27500
+                    above: 0
+                    value_template: "{{ this.state - y_kitchen_recess_bottom }}"
                   - condition: numeric_state
                     entity_id: input_number.saros_10r_current_position_x
-                    below: 29200
+                    below: 0
+                    value_template: "{{ this.state - x_kitchen_recess }}"
                 sequence:
                   - action: vacuum.pause
                     metadata: {}
@@ -432,8 +450,9 @@ sequence:
               śluza that is not open
             condition: template
             value_template: >-
-              {{ (paused or vacuum == cleaning) and (y > 27500 and x > 31300 and
-              x < 31800 and not lock in [ 'on', 'ignore', ]) }}
+              {{ (paused or vacuum == cleaning) and (y > y_narrow_bottom and x >
+              x_lock_swing and x < x_wide_right and not lock in [ 'on',
+              'ignore', ]) }}
         sequence:
           - alias: >-
               unless something changes its state, wait up to 30s before pausing
@@ -456,14 +475,16 @@ sequence:
                         or not is_state('vacuum.matter_saros_10r', vacuum) }}
                     - condition: numeric_state
                       entity_id: input_number.saros_10r_current_position_y
-                      below: 27500
-                    - condition: not
-                      conditions:
-                        - condition: numeric_state
-                          entity_id: input_number.saros_10r_current_position_x
-                          below: 31800
-                          above: 31300
-                      alias: the vacuum has left the door to śluza area
+                      below: 0
+                      value_template: "{{ this.state - y_narrow_bottom }}"
+                    - condition: numeric_state
+                      entity_id: input_number.saros_10r_current_position_x
+                      below: 0
+                      value_template: "{{ this.state - x_lock_swing }}"
+                    - condition: numeric_state
+                      entity_id: input_number.saros_10r_current_position_x
+                      above: 0
+                      value_template: "{{ this.state - x_wide_right }}"
                     - alias: at least 30s has elapsed
                       condition: template
                       value_template: "{{ 30 + timestamp <= now() | as_timestamp }}"
@@ -490,7 +511,8 @@ sequence:
               - conditions:
                   - condition: numeric_state
                     entity_id: input_number.saros_10r_current_position_x
-                    above: 31800
+                    above: 0
+                    value_template: "{{ this.state - x_wide_right }}"
                 sequence:
                   - action: script.turn_on
                     metadata: {}
@@ -515,11 +537,16 @@ sequence:
                       and is_state('vacuum.matter_saros_10r', vacuum) }}
                   - condition: numeric_state
                     entity_id: input_number.saros_10r_current_position_y
-                    above: 27500
+                    above: 0
+                    value_template: "{{ this.state - y_narrow_bottom }}"
                   - condition: numeric_state
                     entity_id: input_number.saros_10r_current_position_x
-                    below: 31800
-                    above: 31300
+                    above: 0
+                    value_template: "{{ this.state - x_lock_swing }}"
+                  - condition: numeric_state
+                    entity_id: input_number.saros_10r_current_position_x
+                    below: 0
+                    value_template: "{{ this.state - x_wide_right }}"
                 sequence:
                   - action: vacuum.pause
                     metadata: {}
@@ -680,8 +707,9 @@ sequence:
               łazienka that is not open
             condition: template
             value_template: >-
-              {{ (paused or vacuum == cleaning) and (y > 26500 and x > 29800 and
-              x < 30300 and not washroom in [ 'on', 'ignore', ]) }}
+              {{ (paused or vacuum == cleaning) and (y > y_washroom_swing_top
+              and x > x_washroom_swing and x < x_narrow_right and not washroom
+              in [ 'on', 'ignore', ]) }}
         sequence:
           - alias: >-
               unless something changes its state, wait up to 30s before pausing
@@ -704,14 +732,16 @@ sequence:
                         or not is_state('vacuum.matter_saros_10r', vacuum) }}
                     - condition: numeric_state
                       entity_id: input_number.saros_10r_current_position_y
-                      above: 26500
-                    - alias: the vacuum has left the door to łazienka area
-                      condition: not
-                      conditions:
-                        - condition: numeric_state
-                          entity_id: input_number.saros_10r_current_position_x
-                          below: 30300
-                          above: 29800
+                      above: 0
+                      value_template: "{{ this.state - y_washroom_swing_top }}"
+                    - condition: numeric_state
+                      entity_id: input_number.saros_10r_current_position_x
+                      above: 0
+                      value_template: "{{ this.state - x_narrow_right }}"
+                    - condition: numeric_state
+                      entity_id: input_number.saros_10r_current_position_x
+                      below: 0
+                      value_template: "{{ this.state - x_washroom_swing }}"
                     - alias: at least 30s has elapsed
                       condition: template
                       value_template: "{{ 30 + timestamp <= now() | as_timestamp }}"
@@ -738,7 +768,8 @@ sequence:
               - conditions:
                   - condition: numeric_state
                     entity_id: input_number.saros_10r_current_position_x
-                    above: 30300
+                    above: 0
+                    value_template: "{{ this.state - x_narrow_right }}"
                 sequence:
                   - action: script.turn_on
                     metadata: {}
@@ -763,11 +794,16 @@ sequence:
                       and is_state('vacuum.matter_saros_10r', vacuum) }}
                   - condition: numeric_state
                     entity_id: input_number.saros_10r_current_position_y
-                    below: 26500
+                    below: 0
+                    value_template: "{{ this.state - y_washroom_swing_top }}"
                   - condition: numeric_state
                     entity_id: input_number.saros_10r_current_position_x
-                    below: 30300
-                    above: 29800
+                    above: 0
+                    value_template: "{{ this.state - x_washroom_swing }}"
+                  - condition: numeric_state
+                    entity_id: input_number.saros_10r_current_position_x
+                    below: 0
+                    value_template: "{{ this.state - x_narrow_right }}"
                 sequence:
                   - action: vacuum.pause
                     metadata: {}
@@ -933,11 +969,13 @@ sequence:
           - alias: the vacuum is still  inside and not approaching a closed door
             condition: template
             value_template: >-
-              {{ x > 28700 and x < 31800 and y < 29000 and (x < 30300 or y >
-              27500) and (not kitchen in [ 'off', 'ignored', ] or x > 29200 or y
-              < 27500) and (not lock in [ 'off', 'ignored', ] or x < 31300 or y
-              < 27500) and (not washroom in [ 'off', 'ignored', ] or x < 29800
-              or y > 26500) }}
+              {{ x > x_left and x < x_wide_right and y < y_top and (x <
+              x_narrow_right or y > y_narrow_bottom) and (not kitchen in [
+              'off', 'ignored', ] or x > x_kitchen_recess or y <
+              y_kitchen_recess_bottom) and (not lock in [ 'off', 'ignored', ] or
+              x < x_lock_swing or y < y_narrow_bottom) and (not washroom in [
+              'off', 'ignored', ] or x < x_washroom_swing or y >
+              y_washroom_swing_top) }}
         sequence:
           - alias: >-
               unless something changes its state or the vacuum leaves the (safe)
@@ -969,23 +1007,31 @@ sequence:
                       conditions:
                         - condition: numeric_state
                           entity_id: input_number.saros_10r_current_position_x
-                          below: 31800
-                          above: 28700
+                          above: 0
+                          value_template: "{{ this.state - x_left }}"
+                        - condition: numeric_state
+                          entity_id: input_number.saros_10r_current_position_x
+                          below: 0
+                          value_template: "{{ this.state - x_wide_right }}"
                         - condition: numeric_state
                           entity_id: input_number.saros_10r_current_position_y
-                          below: 29000
+                          below: 0
+                          value_template: "{{ this.state - y_top }}"
                         - condition: or
                           conditions:
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_y
-                              above: 27500
+                              above: 0
+                              value_template: "{{ this.state - y_kitchen_recess_bottom }}"
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_x
-                              below: 30300
-                          alias: L shape (y > 27500 or x < 30300)
+                              below: 0
+                              value_template: "{{ this - x_narrow_right }}"
+                          alias: L shape (y > y_narrow_bottom or x < x_narrow_right)
                         - alias: >-
                             optional exclusion of the door to kuchnia recess
-                            area (y > 27500 and x < 29200)
+                            area (y > y_kitchen_recess_bottom and x <
+                            x_kitchen_recess)
                           condition: or
                           conditions:
                             - condition: template
@@ -998,13 +1044,15 @@ sequence:
                                 - "on"
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_y
-                              below: 27500
+                              below: 0
+                              value_template: "{{ this.state - y_kitchen_recess_bottom }}"
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_x
-                              above: 29200
+                              above: 0
+                              value_template: "{{ this.state - x_kitchen_recess }}"
                         - alias: >-
                             optional exclusion of the door to śluza swing area
-                            (y > 27500 and x > 31300)
+                            (y > y_narrow_bottom and x > x_lock_swing)
                           condition: or
                           conditions:
                             - alias: state of the door to kuchnia is ignored
@@ -1017,13 +1065,16 @@ sequence:
                                 - "on"
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_y
-                              below: 27500
+                              below: 0
+                              value_template: "{{ this.state - y_narrow_bottom }}"
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_x
-                              below: 31300
+                              below: 0
+                              value_template: "{{ this.state - x_lock_swing }}"
                         - alias: >-
                             optional exclusion of the door to łazienka swing
-                            area (y < 26500 and x > 29800)
+                            area (y < y_washroom_swing_top and x >
+                            x_washroom_swing)
                           condition: or
                           conditions:
                             - alias: state of the door to kuchnia is ignored
@@ -1036,13 +1087,15 @@ sequence:
                                 - "on"
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_y
-                              above: 26500
+                              above: 0
+                              value_template: "{{ this.state - y_washroom_swing_top }}"
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_x
-                              below: 29800
+                              below: 0
+                              value_template: "{{ this.state - x_washroom_swing }}"
                         - alias: >-
                             optional exclusion of the door to śluza swing area
-                            (y > 27500 and x > 31300)
+                            (y > y_narrow_bottom and x > x_lock_swing)
                           condition: or
                           conditions:
                             - alias: state of the door to kuchnia is ignored
@@ -1055,10 +1108,12 @@ sequence:
                                 - "on"
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_y
-                              below: 27500
+                              below: 0
+                              value_template: "{{ this.state - y_narrow_bottom }}"
                             - condition: numeric_state
                               entity_id: input_number.saros_10r_current_position_x
-                              below: 31300
+                              below: 0
+                              value_template: "{{ this.state - x_lock_swing }}"
                     - alias: at least 30s has elapsed
                       condition: template
                       value_template: "{{ paused or 30 + timestamp <= now() | as_timestamp }}"
@@ -1097,23 +1152,30 @@ sequence:
                     conditions:
                       - condition: numeric_state
                         entity_id: input_number.saros_10r_current_position_x
-                        below: 31800
-                        above: 28700
+                        above: 0
+                        value_template: "{{ this.state - x_left }}"
+                      - condition: numeric_state
+                        entity_id: input_number.saros_10r_current_position_x
+                        below: 0
+                        value_template: "{{ this.state - x_wide_right }}"
                       - condition: numeric_state
                         entity_id: input_number.saros_10r_current_position_y
-                        below: 29000
+                        below: 0
+                        value_template: "{{ this.state - y_top }}"
                       - condition: or
                         conditions:
                           - condition: numeric_state
                             entity_id: input_number.saros_10r_current_position_y
-                            above: 27500
+                            above: 0
+                            value_template: "{{ this.state - y_narrow_bottom }}"
                           - condition: numeric_state
                             entity_id: input_number.saros_10r_current_position_x
-                            below: 30300
-                        alias: L shape (y > 27500 or x < 30300)
+                            below: 0
+                            value_template: "{{ this.state - x_narrow_right }}"
+                        alias: L shape (y > y_narrow_bottom or x < x_narrow_right)
                       - alias: >-
                           optional exclusion of the door to kuchnia recess area
-                          (y > 27500 and x < 29200)
+                          (y > y_kitchen_recess_bottom and x < x_kitchen_recess)
                         condition: or
                         conditions:
                           - condition: template
@@ -1126,13 +1188,15 @@ sequence:
                               - "on"
                           - condition: numeric_state
                             entity_id: input_number.saros_10r_current_position_y
-                            below: 27500
+                            below: 0
+                            value_template: "{{ this.state - y_kitchen_recess_bottom }}"
                           - condition: numeric_state
                             entity_id: input_number.saros_10r_current_position_x
-                            above: 29200
+                            above: 0
+                            value_template: "{{ this.state - x_kitchen_recess }}"
                       - alias: >-
                           optional exclusion of the door to śluza swing area (y
-                          > 27500 and x > 31300)
+                          > y_narrow_bottom and x > x_lock_swing)
                         condition: or
                         conditions:
                           - alias: state of the door to kuchnia is ignored
@@ -1144,13 +1208,15 @@ sequence:
                               - "on"
                           - condition: numeric_state
                             entity_id: input_number.saros_10r_current_position_y
-                            below: 27500
+                            below: 0
+                            value_template: "{{ this.state - y_narrow_bottom }}"
                           - condition: numeric_state
                             entity_id: input_number.saros_10r_current_position_x
-                            below: 31300
+                            below: 0
+                            value_template: "{{ this.state - x_lock_swing }}"
                       - alias: >-
                           optional exclusion of the door to łazienka swing area
-                          (y < 26500 and x > 29800)
+                          (y < y_washroom_swing_top and x > x_washroom_swing)
                         condition: or
                         conditions:
                           - alias: state of the door to kuchnia is ignored
@@ -1163,10 +1229,12 @@ sequence:
                               - "on"
                           - condition: numeric_state
                             entity_id: input_number.saros_10r_current_position_y
-                            above: 26500
+                            above: 0
+                            value_template: "{{ this.state - y_washroom_swing_top }}"
                           - condition: numeric_state
                             entity_id: input_number.saros_10r_current_position_x
-                            below: 29800
+                            below: 0
+                            value_template: "{{ this.state - x_washroom_swing }}"
                     alias: >-
                       the vacuum has left either the korytarz or its
                       collision-free area
@@ -1449,23 +1517,30 @@ sequence:
                   conditions:
                     - condition: numeric_state
                       entity_id: input_number.saros_10r_current_position_x
-                      below: 31800
-                      above: 28700
+                      above: 0
+                      value_template: "{{ this.state - x_left }}"
+                    - condition: numeric_state
+                      entity_id: input_number.saros_10r_current_position_x
+                      below: 0
+                      value_template: "{{ this.state - x_wide_right }}"
                     - condition: numeric_state
                       entity_id: input_number.saros_10r_current_position_y
-                      below: 29000
+                      below: 0
+                      value_template: "{{ this.state - y_top }}"
                     - condition: or
                       conditions:
                         - condition: numeric_state
                           entity_id: input_number.saros_10r_current_position_y
-                          above: 27500
+                          above: 0
+                          value_template: "{{ this.state - y_narrow_bottom }}"
                         - condition: numeric_state
                           entity_id: input_number.saros_10r_current_position_x
-                          below: 30300
-                      alias: L shape (y > 27500 or x < 30300)
+                          below: 0
+                          value_template: "{{ this.state - x_narrow_right }}"
+                      alias: L shape (y > y_narrow_bottom or x < x_narrow_right)
                     - alias: >-
                         optional exclusion of the door to śluza swing area (y >
-                        27500 and x > 31300)
+                        y_narrow_bottom and x > x_lock_swing)
                       condition: or
                       conditions:
                         - alias: state of the door to kuchnia is ignored
@@ -1477,10 +1552,12 @@ sequence:
                             - "on"
                         - condition: numeric_state
                           entity_id: input_number.saros_10r_current_position_y
-                          below: 27500
+                          below: 0
+                          value_template: "{{ this.state - y_narrow_bottom }}"
                         - condition: numeric_state
                           entity_id: input_number.saros_10r_current_position_x
-                          below: 31300
+                          below: 0
+                          value_template: "{{ this.state - x_lock_swing }}"
           sequence:
             - wait_for_trigger:
                 - trigger: state
