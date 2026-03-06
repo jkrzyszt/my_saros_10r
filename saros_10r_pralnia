@@ -1,0 +1,452 @@
+sequence:
+  - variables:
+      door: >-
+        {{ door |
+        default(states('binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia')) }}
+      floor: "{{ states('select.roborock_saros_10r_selected_map') }}"
+      tracking: "{{ states('script.saros_10r_position_tracking') }}"
+      vacuum: "{{ states('vacuum.matter_saros_10r') }}"
+      x: "{{ states('input_number.saros_10r_current_position_x') | int }}"
+      "y": "{{ states('input_number.saros_10r_current_position_y') | int }}"
+  - choose:
+      - conditions:
+          - alias: the vacuum is docked or not manageable
+            condition: template
+            value_template: "{{ vacuum in [ 'docked', 'error', 'unknown', 'unavailable', ] }}"
+        sequence: []
+      - conditions:
+          - alias: the vacuum is not moving or position tracking is not active
+            condition: template
+            value_template: "{{ vacuum in [ 'paused', 'idle', ]  or tracking != 'on' }}"
+        sequence:
+          - alias: wait for the vacuum moving again and position tracking recovered
+            wait_for_trigger:
+              - trigger: state
+                entity_id:
+                  - select.roborock_saros_10r_selected_map
+              - trigger: state
+                entity_id:
+                  - script.saros_10r_position_tracking
+              - trigger: state
+                entity_id:
+                  - sensor.roborock_saros_10r_status
+              - trigger: state
+                entity_id:
+                  - sensor.roborock_saros_10r_current_room
+              - trigger: state
+                entity_id:
+                  - vacuum.matter_saros_10r
+              - trigger: state
+                entity_id:
+                  - sensor.matter_saros_10r_operational_state
+              - trigger: state
+                entity_id:
+                  - vacuum.roborock_saros_10r
+              - trigger: state
+                entity_id:
+                  - binary_sensor.roborock_saros_10r_cleaning
+              - trigger: state
+                entity_id:
+                  - sensor.saros_10r_current_position
+          - action: script.turn_on
+            metadata: {}
+            target:
+              entity_id: script.saros_10r_garderoba_przyziemie
+            data: {}
+      - conditions:
+          - condition: template
+            value_template: "{{ floor != 'Przyziemie' }}"
+            alias: the vacuum is cleaning a floor other than przyziemie
+        sequence: []
+      - conditions:
+          - alias: the vacuum is outside
+            condition: template
+            value_template: "{{ x > 28000 or y > 26400 }}"
+        sequence:
+          - action: script.turn_on
+            metadata: {}
+            target:
+              entity_id:
+                - script.saros_10r_garderoba_przyziemie
+            data: {}
+            enabled: true
+    default:
+      - alias: optional wait
+        choose:
+          - conditions:
+              - alias: the vacuum is returning to dock
+                condition: template
+                value_template: "{{ vacuum == 'returning' }}"
+            sequence:
+              - alias: >-
+                  as long as nothing changes its state, wait for the vacuum to
+                  reach the dock
+                repeat:
+                  while:
+                    - alias: >-
+                        neither the door, nor current floor, nor position
+                        tracking, nor the vacuum state has changed
+                      condition: template
+                      value_template: >-
+                        {{ (door == 'ignore' or 
+                        is_state('binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia',
+                        door)) and
+                        is_state('select.roborock_saros_10r_selected_map',
+                        floor) and
+                        is_state('script.saros_10r_position_tracking', tracking)
+                        and is_state('vacuum.matter_saros_10r', vacuum) }}
+                  sequence:
+                    - wait_for_trigger:
+                        - trigger: state
+                          entity_id:
+                            - binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia
+                        - trigger: state
+                          entity_id:
+                            - select.roborock_saros_10r_selected_map
+                        - trigger: state
+                          entity_id:
+                            - script.saros_10r_position_tracking
+                        - trigger: state
+                          entity_id:
+                            - sensor.roborock_saros_10r_status
+                        - trigger: state
+                          entity_id:
+                            - sensor.roborock_saros_10r_current_room
+                        - trigger: state
+                          entity_id:
+                            - vacuum.matter_saros_10r
+                        - trigger: state
+                          entity_id:
+                            - sensor.matter_saros_10r_operational_state
+                        - trigger: state
+                          entity_id:
+                            - vacuum.roborock_saros_10r
+                        - trigger: state
+                          entity_id:
+                            - binary_sensor.roborock_saros_10r_cleaning
+                        - trigger: state
+                          entity_id:
+                            - sensor.saros_10r_current_position
+          - conditions:
+              - alias: >-
+                  the vacuum has approached the door that is not open and not
+                  ignored
+                condition: template
+                value_template: "{{ x > 27500 and not door in [ 'on', 'ignored', ] }}"
+            sequence: []
+          - conditions:
+              - alias: the door is not open and not ignored
+                condition: template
+                value_template: "{{ not door in [ 'on', 'ignore', ] }}"
+            sequence:
+              - alias: >-
+                  as long as nothing changes its state, wait for the vacuum to
+                  complete cleaning and return to  dock
+                repeat:
+                  while:
+                    - alias: >-
+                        neither the door, nor current floor, nor position
+                        tracking, nor the vacuum state has changed
+                      condition: template
+                      value_template: >-
+                        {{ (door == 'ignore' or 
+                        is_state('binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia',
+                        door)) and
+                        is_state('select.roborock_saros_10r_selected_map',
+                        floor) and
+                        is_state('script.saros_10r_position_tracking', tracking)
+                        and is_state('vacuum.matter_saros_10r', vacuum) }}
+                    - condition: numeric_state
+                      entity_id: input_number.saros_10r_current_position_x
+                      below: 27500
+                  sequence:
+                    - wait_for_trigger:
+                        - trigger: state
+                          entity_id:
+                            - binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia
+                        - trigger: state
+                          entity_id:
+                            - select.roborock_saros_10r_selected_map
+                        - trigger: state
+                          entity_id:
+                            - script.saros_10r_position_tracking
+                        - trigger: state
+                          entity_id:
+                            - sensor.roborock_saros_10r_status
+                        - trigger: state
+                          entity_id:
+                            - sensor.roborock_saros_10r_current_room
+                        - trigger: state
+                          entity_id:
+                            - vacuum.matter_saros_10r
+                        - trigger: state
+                          entity_id:
+                            - sensor.matter_saros_10r_operational_state
+                        - trigger: state
+                          entity_id:
+                            - vacuum.roborock_saros_10r
+                        - trigger: state
+                          entity_id:
+                            - binary_sensor.roborock_saros_10r_cleaning
+                        - trigger: state
+                          entity_id:
+                            - sensor.saros_10r_current_position
+        default:
+          - alias: >-
+              as long as nothing changes its state, wait for the vacuum to
+              complete cleaning and either leave or return to dock
+            repeat:
+              while:
+                - alias: >-
+                    neither the door, nor current floor, nor position tracking,
+                    nor the vacuum state has changed
+                  condition: template
+                  value_template: >-
+                    {{ (door == 'ignore' or 
+                    is_state('binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia',
+                    door)) and
+                    is_state('select.roborock_saros_10r_selected_map', floor)
+                    and is_state('script.saros_10r_position_tracking', tracking)
+                    and is_state('vacuum.matter_saros_10r', vacuum) }}
+                - condition: numeric_state
+                  entity_id: input_number.saros_10r_current_position_x
+                  below: 28000
+              sequence:
+                - wait_for_trigger:
+                    - trigger: state
+                      entity_id:
+                        - binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia
+                    - trigger: state
+                      entity_id:
+                        - select.roborock_saros_10r_selected_map
+                    - trigger: state
+                      entity_id:
+                        - script.saros_10r_position_tracking
+                    - trigger: state
+                      entity_id:
+                        - sensor.roborock_saros_10r_status
+                    - trigger: state
+                      entity_id:
+                        - sensor.roborock_saros_10r_current_room
+                    - trigger: state
+                      entity_id:
+                        - vacuum.matter_saros_10r
+                    - trigger: state
+                      entity_id:
+                        - sensor.matter_saros_10r_operational_state
+                    - trigger: state
+                      entity_id:
+                        - vacuum.roborock_saros_10r
+                    - trigger: state
+                      entity_id:
+                        - binary_sensor.roborock_saros_10r_cleaning
+                    - trigger: state
+                      entity_id:
+                        - sensor.saros_10r_current_position
+      - alias: process
+        choose:
+          - conditions:
+              - condition: state
+                entity_id: vacuum.matter_saros_10r
+                state:
+                  - docked
+                  - error
+                  - unknown
+                  - unavailable
+            sequence: []
+          - conditions:
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity_id: vacuum.matter_saros_10r
+                    state:
+                      - paused
+                      - idle
+                  - condition: state
+                    entity_id: script.saros_10r_position_tracking
+                    state:
+                      - "off"
+                      - unknown
+                      - unavailable
+                alias: >-
+                  either the vacuum is not moving or position tracking is
+                  inactive
+            sequence:
+              - action: script.turn_on
+                metadata: {}
+                target:
+                  entity_id:
+                    - script.saros_10r_pralnia
+                data: {}
+                enabled: true
+          - conditions:
+              - alias: the vacuum is cleaning a floor other than przyziemie
+                condition: not
+                conditions:
+                  - condition: state
+                    entity_id: select.roborock_saros_10r_selected_map
+                    state:
+                      - Przyziemie
+            sequence: []
+          - conditions:
+              - condition: numeric_state
+                entity_id: input_number.saros_10r_current_position_x
+                above: 28000
+            sequence:
+              - action: script.turn_on
+                metadata: {}
+                target:
+                  entity_id:
+                    - script.saros_10r_garderoba_przyziemie
+                data: {}
+                enabled: true
+            alias: the vacuum has left
+          - conditions:
+              - alias: the door neither is ignored nor has changed its state
+                condition: template
+                value_template: >-
+                  {{ door != 'ignore' and
+                  is_state('binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia',
+                  door) }}
+              - condition: template
+                value_template: "{{ door != 'on' }}"
+                alias: the door is not open
+              - condition: numeric_state
+                entity_id: input_number.saros_10r_current_position_x
+                above: 27500
+            sequence:
+              - action: vacuum.pause
+                metadata: {}
+                target:
+                  entity_id: vacuum.matter_saros_10r
+                data: {}
+              - alias: >-
+                  wait for someone to open or close the door, or to fix the door
+                  sensor, or to ignore the door state
+                repeat:
+                  while:
+                    - condition: template
+                      value_template: >-
+                        {{
+                        is_state('binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia',
+                        door) }}
+                      alias: the door state hasn't changed
+                    - condition: state
+                      entity_id: vacuum.matter_saros_10r
+                      state:
+                        - paused
+                  sequence:
+                    - alias: Call for help with the door
+                      action: vacuum.locate
+                      metadata: {}
+                      data: {}
+                      target:
+                        entity_id: vacuum.roborock_saros_10r
+                    - wait_for_trigger:
+                        - trigger: state
+                          entity_id:
+                            - binary_sensor.zbeacon_ds01_drzwi_pralnia_kotlownia
+                        - trigger: state
+                          entity_id:
+                            - vacuum.matter_saros_10r
+                        - trigger: state
+                          entity_id:
+                            - sensor.matter_saros_10r_operational_state
+                        - trigger: state
+                          entity_id:
+                            - vacuum.roborock_saros_10r
+                        - trigger: state
+                          entity_id:
+                            - sensor.roborock_saros_10r_status
+                        - trigger: state
+                          entity_id:
+                            - binary_sensor.roborock_saros_10r_cleaning
+                      timeout:
+                        hours: 0
+                        minutes: 1
+                        seconds: 0
+                        milliseconds: 0
+              - alias: resume the vacuum if still paused
+                choose:
+                  - conditions:
+                      - condition: state
+                        entity_id: vacuum.matter_saros_10r
+                        state:
+                          - paused
+                    sequence:
+                      - action: vacuum.send_command
+                        metadata: {}
+                        data:
+                          command: app_resume
+                        target:
+                          entity_id: vacuum.roborock_saros_10r
+                      - wait_for_trigger:
+                          - trigger: state
+                            entity_id:
+                              - select.roborock_saros_10r_selected_map
+                          - trigger: state
+                            entity_id:
+                              - script.saros_10r_position_tracking
+                          - trigger: state
+                            entity_id:
+                              - sensor.roborock_saros_10r_status
+                          - trigger: state
+                            entity_id:
+                              - sensor.roborock_saros_10r_current_room
+                          - trigger: state
+                            entity_id:
+                              - vacuum.matter_saros_10r
+                          - trigger: state
+                            entity_id:
+                              - sensor.matter_saros_10r_operational_state
+                          - trigger: state
+                            entity_id:
+                              - vacuum.roborock_saros_10r
+                          - trigger: state
+                            entity_id:
+                              - binary_sensor.roborock_saros_10r_cleaning
+                          - trigger: state
+                            entity_id:
+                              - sensor.saros_10r_current_position
+                        timeout:
+                          hours: 0
+                          minutes: 0
+                          seconds: 3
+                          milliseconds: 0
+                      - action: script.turn_on
+                        metadata: {}
+                        target:
+                          entity_id: script.saros_10r_pralnia
+                        data: {}
+                  - conditions:
+                      - condition: state
+                        entity_id: vacuum.matter_saros_10r
+                        state:
+                          - cleaning
+                          - returning
+                    sequence:
+                      - alias: >-
+                          someone apparently resumed the vacuum, ignore the door
+                          state
+                        action: script.turn_on
+                        metadata: {}
+                        target:
+                          entity_id: script.saros_10r_pralnia
+                        data:
+                          variables:
+                            door: ignore
+                default:
+                  - action: script.turn_on
+                    metadata: {}
+                    target:
+                      entity_id: script.saros_10r_pralnia
+                    data: {}
+        default:
+          - action: script.turn_on
+            metadata: {}
+            target:
+              entity_id: script.saros_10r_pralnia
+            data: {}
+alias: Saros 10R pralnia
+description: ""
+mode: restart
