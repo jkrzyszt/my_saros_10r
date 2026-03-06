@@ -125,7 +125,7 @@ sequence:
                         metadata: {}
                         data:
                           variables:
-                            drzwi: ignore
+                            door: ignore
                         target:
                           entity_id:
                             - script.saros_10r_kuchnia_przyziemie
@@ -180,7 +180,7 @@ sequence:
                         metadata: {}
                         data:
                           variables:
-                            drzwi: ignore
+                            door: ignore
                         target:
                           entity_id:
                             - script.saros_10r_lazienka_przyziemie
